@@ -112,22 +112,11 @@ class Bound(object):
         True
         >>> Bound.gt(6) < Bound.lt(7)
         True
-        """
-        return cmp(self.value, other.value) or cmp(self._order, other._order)
-
-    def __eq__(self, other):
-        """
-        Checks whether two bound are equal, both value and the operator
-        have to be equal.
-
         >>> [Bound(5, op) == Bound(5, op)
         ...  for op in (operator.lt, operator.gt, operator.le, operator.ge)]
         [True, True, True, True]
         """
-        return self.value == other.value and self._operator == other._operator
-
-    def __ne__(self, other):
-        return not (self == other)
+        return cmp(self.value, other.value) or cmp(self._order, other._order)
 
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__, str(self))
@@ -135,6 +124,9 @@ class Bound(object):
     def __unicode__(self):
         prefix, suffix = self.PREFIXES_SUFFIXES[self._operator]
         return u'{}{}{}'.format(prefix, self._value, suffix)
+
+    def __hash__(self):
+        return hash((self.value, self._order))
 
     def __str__(self):
         return unicode(self).encode('utf-8')

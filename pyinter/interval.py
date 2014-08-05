@@ -1,7 +1,4 @@
 import operator
-from collections import Iterable
-
-from sortedcontainers import SortedSet
 
 from .interval_set import IntervalSet
 from .bound import Bound
@@ -173,21 +170,24 @@ class Interval(object):
 
         >>> Interval.open(1, 2) < Interval.open(1, 3)
         True
+
+        >>> Interval.open(1, 2) == Interval.open(2, 3)
+        False
+
+        >>> Interval.open(1, 2) == Interval.open(1, 2)
+        True
+
+        >>> Interval.open(1, 2, 'data') == Interval.open(1, 2)
+        True
+
+        >>> Interval.open(1, 2) == Interval.open(1, 3)
+        False
         """
 
         return (
             cmp(self.lower, other.lower)
             or cmp(self.upper, other.upper)
         )
-
-    def __eq__(self, other):
-        return (
-            self.lower == other.lower
-            and self.upper == other.upper
-        )
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
     def __hash__(self):
         return hash((self.lower, self.upper))

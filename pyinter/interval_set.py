@@ -1,9 +1,8 @@
 from collections import Iterable
+import heapq
 
-from sortedcontainers import SortedSet, SortedList
 
-
-class IntervalSet(SortedSet):
+class IntervalSet(set):
     """
     A class to hold collections of intervals,
     otherwise known as discontinuous ranges.
@@ -63,10 +62,19 @@ class IntervalSet(SortedSet):
         return '{}({})'.format(self.__class__.__name__, str(self))
 
     def __unicode__(self):
-        return u', '.join(unicode(interval) for interval in self)
+        return u', '.join(unicode(interval) for interval in sorted(self))
 
     def __str__(self):
         return unicode(self).encode('utf-8')
+
+    def __and__(self, other):
+        return self.intersection(other)
+
+    def __or__(self, other):
+        return self.union(other)
+
+    def __sub__(self, other):
+        return self.difference(other)
 
     def intersection(self, *others):
         """
@@ -93,7 +101,7 @@ class IntervalSet(SortedSet):
             return None
 
         if len(result) == 1:
-            return result[0]
+            return iter(result).next()
 
         return result
 
@@ -113,11 +121,11 @@ class IntervalSet(SortedSet):
         """
 
         for other in others:
-            self_queue = list(self)
+            self_queue = sorted(self)
             self.clear()
 
             if isinstance(other, Iterable):
-                other_queue = SortedList(other)
+                other_queue = sorted(other)
             else:
                 other_queue = [other]
 
@@ -131,10 +139,12 @@ class IntervalSet(SortedSet):
                 if intersection:
                     raw.add(intersection)
 
-                if other_interval.upper > self_interval.upper:
-                    self_queue.pop(0)
-                else:
-                    other_queue.pop(0)
+                pop_from = (
+                    self_queue if other_interval.upper > self_interval.upper
+                    else other_queue
+                )
+
+                pop_from.pop(0)
 
     def union(self, *others):
         """
@@ -149,6 +159,8 @@ class IntervalSet(SortedSet):
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
         >>> set_b_no_data = Interval.closed(0, 2) | Interval.open(3, 5)
         >>> set_a | set_b
+        IntervalSet([0, 1], (1, 3): some, (3, 5): data, [5, 5])
+        >>> set_a.union(set_b)
         IntervalSet([0, 1], (1, 3): some, (3, 5): data, [5, 5])
         >>> set_a | set_b == set_a.union(set_b)
         True
@@ -167,7 +179,7 @@ class IntervalSet(SortedSet):
             return None
 
         if len(result) == 1:
-            return result[0]
+            return iter(result).next()
 
         return result
 
@@ -187,20 +199,22 @@ class IntervalSet(SortedSet):
         True
         """
 
-        queue = SortedList(self)
+        queue = list(self)
+        heapq.heapify(queue)
 
         for other in others:
             if isinstance(other, Iterable):
-                queue.update(other)
+                for interval in other:
+                    heapq.heappush(queue, interval)
             else:
-                queue.add(other)
+                heapq.heappush(queue, other)
 
         self.clear()
         raw = super(IntervalSet, self)
         last_interval = None
 
         while queue:
-            interval = queue.pop(0)
+            interval = heapq.heappop(queue)
 
             if not last_interval:
                 last_interval = interval
@@ -214,7 +228,7 @@ class IntervalSet(SortedSet):
                     elif i.lower == interval.lower:
                         last_interval = i
                     else:
-                        queue.add(i)
+                        heapq.heappush(queue, i)
             else:
                 last_interval = union
 

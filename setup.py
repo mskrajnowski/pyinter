@@ -25,7 +25,6 @@ setup(
     zip_safe=True,
     install_requires=[
         # -*- Extra requirements: -*-
-        'sortedcontainers',
     ],
     tests_require=[
         'unittest2',
