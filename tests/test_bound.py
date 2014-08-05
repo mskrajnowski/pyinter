@@ -1,8 +1,8 @@
 import unittest2
 import doctest
-from pyinter import interval_set
+from pyinter import bound
 
 
 def load_tests(loader, tests, ignore):
-    tests.addTests(doctest.DocTestSuite(interval_set))
+    tests.addTests(doctest.DocTestSuite(bound))
     return tests

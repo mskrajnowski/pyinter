@@ -1,103 +1,225 @@
-import functools
+from collections import Iterable
+
+from sortedcontainers import SortedSet, SortedList
 
 
-class IntervalSet(object):
-    """A class to hold collections of intervals, otherwise known as discontinuous ranges"""
+class IntervalSet(SortedSet):
+    """
+    A class to hold collections of intervals,
+    otherwise known as discontinuous ranges.
 
-    _data = set()
+    >>> from .interval import Interval
+    >>> intervals = (
+    ...     Interval.closed(2, 3),
+    ...     Interval.open(1, 2),
+    ...     Interval.closed(5, 6),
+    ... )
 
-    def __init__(self, iterable=None):
-        """Create an interval set.
-        :param iterable: An optional iterable of Interval objects to initialise the IntervalSet with.
-        """
-        self._data = set()
-        if iterable is not None:
-            for el in iterable:
-                self.add(el)
+    >>> IntervalSet(intervals)
+    IntervalSet((1, 3], [5, 6])
 
-    def __repr__(self):
-        return '{clazz}{elements}'.format(clazz=self.__class__.__name__, elements=tuple(sorted(self._data)))
+    If you're sure that intervals passed don't overlap and aren't adjacent
+    you can pass check_overlaps=False, which will cause the set to just store
+    the passed intervals as they are.
+    It's used internally by the Interval when creating sets.
+    >>> IntervalSet(intervals, check_overlaps=False)
+    IntervalSet((1, 2), [2, 3], [5, 6])
+    """
 
-    def __eq__(self, other):
-        if hasattr(other, '_data'):
-            return self._data == other._data
-        else:
-            raise NotImplementedError  # This will allow other a chance to check for equality
+    def __init__(self, iterable=None, check_overlaps=True):
+        raw = super(IntervalSet, self)
+        raw.__init__()
+
+        if iterable:
+            if check_overlaps:
+                self.update(iterable)
+            else:
+                raw.update(iterable)
 
     def __contains__(self, item):
-        for interval in self._data:
+        """
+        Checks whether the value is inside any of the intervals in the set.
+
+        >>> from .interval import Interval
+        >>> set = Interval.open(0, 2) | Interval.closed(3, 4)
+        >>> [i in set for i in range(6)]
+        [False, True, False, True, True, False]
+
+        >>> Interval.open(1, 2) in set
+        True
+        >>> Interval.closed(3, 3) in set
+        True
+        >>> Interval.closed(2, 3) in set
+        False
+        >>> Interval.open(1, 4) in set
+        False
+        """
+        for interval in self:
             if item in interval:
                 return True
         return False
 
-    def __iter__(self):
-        return self._data.__iter__()
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, str(self))
 
-    def _add(self, other):
-        """Add a interval to the underlying IntervalSet data store. This does not perform any tests as we assume that
-        any requirements have already been checked and that this function is being called by an internal function such
-        as union(), intersection() or add().
-        :param other: An Interval to add to this one
+    def __unicode__(self):
+        return u', '.join(unicode(interval) for interval in self)
+
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+
+    def intersection(self, *others):
         """
-        if len([interval for interval in self if other in interval]) > 0:  # if other is already represented
-            return
-        # remove any intervals which are fully represented by the interval we are adding
-        to_remove = [interval for interval in self if interval in other]
-        self._data.difference_update(to_remove)
-        self._data.add(other)
+        Returns the intersection between this set and other sets
+        and/or intervals. The return value can be either an IntervalSet,
+        an Interval or None.
+        set.intersection(a, b) <=> set & a & b
 
-    def __len__(self):
-        """Return the length of this object"""
-        return self._data.__len__()
-
-    def intersection(self, other):
-        """Returns a new IntervalSet which represents the intersection of each of the intervals in this IntervalSet
-        with each of the intervals in the other IntervalSet.
-        :param other: An IntervalSet to intersect with this one.
+        >>> from .interval import Interval
+        >>> set_a = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
+        >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
+        >>> set_a & set_b
+        IntervalSet((1, 2]: some, [4, 5): data)
+        >>> set_a & set_b == set_a.intersection(set_b)
+        True
+        >>> set_a & Interval.closed(0, 2, 'data')
+        <Interval (1, 2]: some, data>
+        >>> set_a & Interval.open(5, 6)
         """
-        # if self or other is empty the intersection will be empty
-        result = IntervalSet()
-        for other_inter in other:
-            for interval in self:
-                this_intervals_intersection = other_inter.intersect(interval)
-                if this_intervals_intersection is not None:
-                    result._add(this_intervals_intersection)
+        result = self.__class__(self, check_overlaps=False)
+        result.intersection_update(*others)
+
+        if len(result) == 0:
+            return None
+
+        if len(result) == 1:
+            return result[0]
+
         return result
 
-    def union(self, other):
-        """Returns a new IntervalSet which represents the union of each of the intervals in this IntervalSet with each
-        of the intervals in the other IntervalSet
-        :param other: An IntervalSet to union with this one.
+    def intersection_update(self, *others):
         """
-        result = IntervalSet()
-        for el in self:
-            result.add(el)
-        for el in other:
-            result.add(el)
+        Updates the set to include only the intersection of itself and others.
+
+        >>> from .interval import Interval
+        >>> set_a = Interval.open(1, 3) | Interval.closed(4, 5)
+        >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5)
+        >>> result = IntervalSet(set_a)
+        >>> result.intersection_update(set_b)
+        >>> result
+        IntervalSet((1, 2], [4, 5))
+        >>> result == set_a & set_b
+        True
+        """
+
+        for other in others:
+            self_queue = list(self)
+            self.clear()
+
+            if isinstance(other, Iterable):
+                other_queue = SortedList(other)
+            else:
+                other_queue = [other]
+
+            raw = super(IntervalSet, self)
+
+            while self_queue and other_queue:
+                self_interval = self_queue[0]
+                other_interval = other_queue[0]
+
+                intersection = self_interval & other_interval
+                if intersection:
+                    raw.add(intersection)
+
+                if other_interval.upper > self_interval.upper:
+                    self_queue.pop(0)
+                else:
+                    other_queue.pop(0)
+
+    def union(self, *others):
+        """
+        Calculates the union of the current set with other sets
+        and/or intervals. The return value can be an IntervalSet or
+        an Interval.
+
+        set.union(a, b) <=> set | a | b
+
+        >>> from .interval import Interval
+        >>> set_a = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
+        >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
+        >>> set_b_no_data = Interval.closed(0, 2) | Interval.open(3, 5)
+        >>> set_a | set_b
+        IntervalSet([0, 1], (1, 3): some, (3, 5): data, [5, 5])
+        >>> set_a | set_b == set_a.union(set_b)
+        True
+        >>> set_a | set_b_no_data
+        IntervalSet([0, 1], (1, 3): some, (3, 5])
+        >>> set_a | Interval.open(2, 10)
+        IntervalSet((1, 3): some, [3, 10))
+        >>> set_a | Interval.open(2, 10, 'some')
+        <Interval (1, 10): some>
+        """
+
+        result = self.__class__(self, check_overlaps=False)
+        result.update(*others)
+
+        if len(result) == 0:
+            return None
+
+        if len(result) == 1:
+            return result[0]
+
         return result
+
+    def update(self, *others):
+        """
+        Updates the set adding new intervals from others (which can be
+        either sets or intervals).
+
+        >>> from .interval import Interval
+        >>> set_a = Interval.open(1, 3) | Interval.closed(4, 5)
+        >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5)
+        >>> result = IntervalSet(set_a)
+        >>> result.update(set_b)
+        >>> result
+        IntervalSet([0, 3), (3, 5])
+        >>> result == set_a | set_b
+        True
+        """
+
+        queue = SortedList(self)
+
+        for other in others:
+            if isinstance(other, Iterable):
+                queue.update(other)
+            else:
+                queue.add(other)
+
+        self.clear()
+        raw = super(IntervalSet, self)
+        last_interval = None
+
+        while queue:
+            interval = queue.pop(0)
+
+            if not last_interval:
+                last_interval = interval
+                continue
+
+            union = interval | last_interval
+            if isinstance(union, IntervalSet):
+                for i in union:
+                    if i.lower < interval.lower:
+                        raw.add(i)
+                    elif i.lower == interval.lower:
+                        last_interval = i
+                    else:
+                        queue.add(i)
+            else:
+                last_interval = union
+
+        if last_interval:
+            raw.add(last_interval)
 
     def add(self, other):
-        """
-        Add an Interval to the IntervalSet by taking the union of the given Interval object with the existing
-        Interval objects in self.
-
-        This has no effect if the Interval is already represented.
-        :param other: an Interval to add to this IntervalSet.
-        """
-        to_add = set()
-        for inter in self:
-            if inter.overlaps(other):  # if it overlaps with this interval then the union will be a single interval
-                to_add.add(inter.union(other))
-        if len(to_add) == 0:  # other must not overlap with any interval in self (self could be empty!)
-            to_add.add(other)
-        # Now add the intervals found to self
-        if len(to_add) > 1:
-            set_to_add = IntervalSet(to_add)  # creating an interval set unions any overlapping intervals
-            for el in set_to_add:
-                self._add(el)
-        elif len(to_add) == 1:
-            self._add(to_add.pop())
-
-    def complement(self):
-        intersection = lambda a, b: a.intersection(b)
-        return functools.reduce(intersection, [interval.complement() for interval in list(self)])
+        self.update((other, ))
