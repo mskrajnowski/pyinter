@@ -15,14 +15,15 @@ class IntervalSet(set):
     ... )
 
     >>> IntervalSet(intervals)
-    IntervalSet((1, 3], [5, 6])
+    <IntervalSet (1, 3], [5, 6]>
 
     If you're sure that intervals passed don't overlap and aren't adjacent
     you can pass check_overlaps=False, which will cause the set to just store
     the passed intervals as they are.
     It's used internally by the Interval when creating sets.
+
     >>> IntervalSet(intervals, check_overlaps=False)
-    IntervalSet((1, 2), [2, 3], [5, 6])
+    <IntervalSet (1, 2), [2, 3], [5, 6]>
     """
 
     def __init__(self, iterable=None, check_overlaps=True):
@@ -59,7 +60,7 @@ class IntervalSet(set):
         return False
 
     def __repr__(self):
-        return '{}({})'.format(self.__class__.__name__, str(self))
+        return '<{} {}>'.format(self.__class__.__name__, str(self))
 
     def __unicode__(self):
         return u', '.join(unicode(interval) for interval in sorted(self))
@@ -87,7 +88,7 @@ class IntervalSet(set):
         >>> set_a = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
         >>> set_a & set_b
-        IntervalSet((1, 2]: some, [4, 5): data)
+        <IntervalSet (1, 2]: some, [4, 5): data>
         >>> set_a & set_b == set_a.intersection(set_b)
         True
         >>> set_a & Interval.closed(0, 2, 'data')
@@ -115,7 +116,7 @@ class IntervalSet(set):
         >>> result = IntervalSet(set_a)
         >>> result.intersection_update(set_b)
         >>> result
-        IntervalSet((1, 2], [4, 5))
+        <IntervalSet (1, 2], [4, 5)>
         >>> result == set_a & set_b
         True
         """
@@ -159,15 +160,15 @@ class IntervalSet(set):
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
         >>> set_b_no_data = Interval.closed(0, 2) | Interval.open(3, 5)
         >>> set_a | set_b
-        IntervalSet([0, 1], (1, 3): some, (3, 5): data, [5, 5])
+        <IntervalSet [0, 1], (1, 3): some, (3, 5): data, [5, 5]>
         >>> set_a.union(set_b)
-        IntervalSet([0, 1], (1, 3): some, (3, 5): data, [5, 5])
+        <IntervalSet [0, 1], (1, 3): some, (3, 5): data, [5, 5]>
         >>> set_a | set_b == set_a.union(set_b)
         True
         >>> set_a | set_b_no_data
-        IntervalSet([0, 1], (1, 3): some, (3, 5])
+        <IntervalSet [0, 1], (1, 3): some, (3, 5]>
         >>> set_a | Interval.open(2, 10)
-        IntervalSet((1, 3): some, [3, 10))
+        <IntervalSet (1, 3): some, [3, 10)>
         >>> set_a | Interval.open(2, 10, 'some')
         <Interval (1, 10): some>
         """
@@ -194,7 +195,7 @@ class IntervalSet(set):
         >>> result = IntervalSet(set_a)
         >>> result.update(set_b)
         >>> result
-        IntervalSet([0, 3), (3, 5])
+        <IntervalSet [0, 3), (3, 5]>
         >>> result == set_a | set_b
         True
         """

@@ -5,7 +5,7 @@ class Bound(object):
     """
     Represents a single interval (lower or upper) bound.
 
-    Bounds are defined by a value and an operator which will, be used
+    Bounds are defined by a value and an operator, which will be used
     to check whether values are inside a bound.
 
     >>> greater_than_15 = Bound(15, operator.gt)

@@ -12,6 +12,7 @@ class Interval(object):
     data.
 
     **Examples**
+
     An open interval:
 
     >>> Interval.open(100.2, 800.9)
@@ -362,13 +363,13 @@ class Interval(object):
         >>> Interval.open(1, 3) | Interval.closed(0, 1)
         <Interval [0, 3)>
         >>> Interval.closed(1, 3) | Interval.closed(0, 1, 'data')
-        IntervalSet([0, 1]: data, (1, 3])
+        <IntervalSet [0, 1]: data, (1, 3]>
 
         >>> Interval.open(1, 3, 'some') | Interval.open(1, 2, 'more')
-        IntervalSet((1, 2): some, more, [2, 3): some)
+        <IntervalSet (1, 2): some, more, [2, 3): some>
 
         >>> Interval.open(1, 2) | Interval.open(3, 4)
-        IntervalSet((1, 2), (3, 4))
+        <IntervalSet (1, 2), (3, 4)>
 
         >>> Interval.closed(4, 5) | Interval.open(1, 10, 'some')
         <Interval (1, 10): some>
@@ -442,14 +443,14 @@ class Interval(object):
         >>> Interval.open(1, 4) - Interval.open(1, 2)
         <Interval [2, 4)>
         >>> Interval.closed(1, 4) - Interval.open(1, 2)
-        IntervalSet([1, 1], [2, 4])
+        <IntervalSet [1, 1], [2, 4]>
         >>> Interval.closed(1, 4) - Interval.open(2, 3)
-        IntervalSet([1, 2], [3, 4])
+        <IntervalSet [1, 2], [3, 4]>
         >>> Interval.open(1, 4) - Interval.open(3, 4)
         <Interval (1, 3]>
         >>> Interval.open(1, 2) - Interval.open(1, 2)
         >>> Interval.closed(1, 2) - Interval.open(1, 2)
-        IntervalSet([1, 1], [2, 2])
+        <IntervalSet [1, 1], [2, 2]>
         >>> Interval.open(1, 2) - Interval.open(0, 3)
         """
 
