@@ -194,13 +194,19 @@ class Interval(object):
         return hash((self.lower, self.upper))
 
     def __and__(self, other):
-        if other and not isinstance(other, Interval):
+        if not other:
+            return None
+
+        if not isinstance(other, Interval):
             return other & self
 
         return self.intersect(other)
 
     def __or__(self, other):
-        if other and not isinstance(other, Interval):
+        if not other:
+            return self
+
+        if not isinstance(other, Interval):
             return other | self
 
         return self.union(other)
