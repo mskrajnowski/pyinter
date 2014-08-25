@@ -215,7 +215,10 @@ class Interval(object):
         return self | other
 
     def __sub__(self, other):
-        if other and not isinstance(other, Interval):
+        if not other:
+            return self
+
+        if not isinstance(other, Interval):
             return self._create_set((self, )) - other
 
         return self.difference(other)
