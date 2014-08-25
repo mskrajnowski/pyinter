@@ -236,5 +236,114 @@ class IntervalSet(set):
         if last_interval:
             raw.add(last_interval)
 
+    def difference(self, *others):
+        """
+        Returns intervals, which are contained in this interval set, but not
+        in any of the other sets and/or intervals.
+        The return value can be either an IntervalSet, an Interval or None.
+        set.difference(a, b) <=> set - a - b
+
+        >>> from .interval import Interval
+        >>> set_a = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
+        >>> set_b = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
+        >>> set_a - Interval.open(1, 10)
+        <Interval [0, 1]>
+        >>> set_a - Interval.open(1, 4)
+        <IntervalSet [0, 1], [4, 5): data>
+        >>> set_a - set_b
+        <IntervalSet [0, 1], (3, 4): data>
+        >>> set_b - set_a
+        <IntervalSet (2, 3): some, [5, 5]>
+        >>> set_b - set_a == set_b.difference(set_a)
+        True
+        >>> set_b - set_b
+        >>> set_a - set_a
+        >>> set_a - (set_b | set_a)
+        """
+
+        result = self.__class__(self, check_overlaps=False)
+        result.difference_update(*others)
+
+        if len(result) == 0:
+            return None
+
+        if len(result) == 1:
+            return iter(result).next()
+
+        return result
+
+    def difference_update(self, *others):
+        """
+        Updates the set removing all intervals which collide with intervals
+        in others (which can be either sets or intervals).
+
+        >>> from .interval import Interval
+        >>> set_a = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
+
+        >>> result = IntervalSet(set_a)
+        >>> result.difference_update(Interval.open(1, 10))
+        >>> result
+        <IntervalSet [0, 1]>
+
+        >>> result = IntervalSet(set_a)
+        >>> result.difference_update(Interval.open(1, 4))
+        >>> result
+        <IntervalSet [0, 1], [4, 5): data>
+        """
+
+        if not others:
+            return
+
+        other, others = others[0], others[1:]
+
+        if isinstance(other, IntervalSet) and not others:
+            others_union = other
+        else:
+            others_union = self.__class__()
+            others_union.update(other, *others)
+
+        if not others_union:
+            return
+
+        my_queue = list(self)
+        others_queue = list(others_union)
+        heapq.heapify(my_queue)
+        heapq.heapify(others_queue)
+
+        self.clear()
+
+        raw = super(IntervalSet, self)
+
+        other_interval = None
+        while my_queue:
+            interval = heapq.heappop(my_queue)
+            # print 'interval', interval
+
+            if not other_interval or other_interval.upper < interval.lower:
+                if others_queue:
+                    other_interval = heapq.heappop(others_queue)
+                else:
+                    raw.add(interval)
+                    other_interval = None
+                    continue
+
+            # print 'other', other_interval
+
+            diff = interval - other_interval
+            if not diff:
+                continue
+
+            # print 'diff', diff
+
+            if not isinstance(diff, IntervalSet):
+                diff = (diff, )
+
+            for diff_interval in diff:
+                if diff_interval.lower < other_interval.lower:
+                    # print 'adding', diff_interval
+                    raw.add(diff_interval)
+                else:
+                    heapq.heappush(my_queue, diff_interval)
+
     def add(self, other):
         self.update((other, ))
