@@ -1,5 +1,7 @@
 import operator
 
+from .extrema import NEGATIVE_INFINITY, INFINITY
+
 
 class Bound(object):
     """
@@ -62,6 +64,14 @@ class Bound(object):
         """Shortcut method for Bound(value, operator.gt)"""
         return cls(value, operator.gt)
 
+    @classmethod
+    def lt_inf(cls):
+        return cls(INFINITY, operator.lt)
+
+    @classmethod
+    def gt_ninf(cls):
+        return cls(NEGATIVE_INFINITY, operator.gt)
+
     def __init__(self, value, operator):
         self._value = value
         self._operator = operator
@@ -80,6 +90,10 @@ class Bound(object):
             self.value == other.value
             and other.operator == self.OPPOSITE_OPERATORS[self.operator]
         )
+
+    @property
+    def is_lower(self):
+        return self.operator in (operator.gt, operator.ge)
 
     def __contains__(self, value):
         """
@@ -126,6 +140,10 @@ class Bound(object):
         return u'{}{}{}'.format(prefix, self._value, suffix)
 
     def __hash__(self):
+        """
+        >>> sorted(set([Bound.gt(5), Bound.gt(5), Bound.ge(5)]))
+        [<Bound [5>, <Bound (5>]
+        """
         return hash((self.value, self._order))
 
     def __str__(self):

@@ -1,13 +1,15 @@
-from collections import Iterable
-import heapq
+import itertools
+
+# Interval is used in doctests
+from .interval import Interval, set_intersection, difference
+from .interval import union as _union
 
 
-class IntervalSet(set):
+class IntervalSet(object):
     """
     A class to hold collections of intervals,
     otherwise known as discontinuous ranges.
 
-    >>> from .interval import Interval
     >>> intervals = (
     ...     Interval.closed(2, 3),
     ...     Interval.open(1, 2),
@@ -27,20 +29,18 @@ class IntervalSet(set):
     """
 
     def __init__(self, iterable=None, check_overlaps=True):
-        raw = super(IntervalSet, self)
-        raw.__init__()
+        self.intervals = []
 
         if iterable:
             if check_overlaps:
                 self.update(iterable)
             else:
-                raw.update(iterable)
+                self.intervals.extend(iterable)
 
     def __contains__(self, item):
         """
         Checks whether the value is inside any of the intervals in the set.
 
-        >>> from .interval import Interval
         >>> set = Interval.open(0, 2) | Interval.closed(3, 4)
         >>> [i in set for i in range(6)]
         [False, True, False, True, True, False]
@@ -74,17 +74,38 @@ class IntervalSet(set):
     def __or__(self, other):
         return self.union(other)
 
+    def __add__(self, other):
+        return self.union(other)
+
     def __sub__(self, other):
         return self.difference(other)
+
+    def __iter__(self):
+        return iter(self.intervals)
+
+    def __eq__(self, other):
+        if isinstance(other, IntervalSet):
+            return self.intervals == other.intervals
+        return False
+
+    def _iter_other_sets(self, others):
+        for other in others:
+            yield (other, ) if isinstance(other, Interval) else other
+
+    def _iter_other_intervals(self, others):
+        for other in others:
+            if isinstance(other, Interval):
+                yield other
+            else:
+                for interval in other:
+                    yield interval
 
     def intersection(self, *others):
         """
         Returns the intersection between this set and other sets
-        and/or intervals. The return value can be either an IntervalSet,
-        an Interval or None.
+        and/or intervals.
         set.intersection(a, b) <=> set & a & b
 
-        >>> from .interval import Interval
         >>> set_a = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
         >>> set_a & set_b
@@ -92,25 +113,18 @@ class IntervalSet(set):
         >>> set_a & set_b == set_a.intersection(set_b)
         True
         >>> set_a & Interval.closed(0, 2, 'data')
-        <Interval (1, 2]: some, data>
+        <IntervalSet (1, 2]: data, some>
         >>> set_a & Interval.open(5, 6)
+        <IntervalSet >
         """
-        result = self.__class__(self, check_overlaps=False)
-        result.intersection_update(*others)
 
-        if len(result) == 0:
-            return None
-
-        if len(result) == 1:
-            return iter(result).next()
-
-        return result
+        result = set_intersection(self, *self._iter_other_sets(others))
+        return self.__class__(result, check_overlaps=False)
 
     def intersection_update(self, *others):
         """
         Updates the set to include only the intersection of itself and others.
 
-        >>> from .interval import Interval
         >>> set_a = Interval.open(1, 3) | Interval.closed(4, 5)
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5)
         >>> result = IntervalSet(set_a)
@@ -121,31 +135,8 @@ class IntervalSet(set):
         True
         """
 
-        for other in others:
-            self_queue = sorted(self)
-            self.clear()
-
-            if isinstance(other, Iterable):
-                other_queue = sorted(other)
-            else:
-                other_queue = [other]
-
-            raw = super(IntervalSet, self)
-
-            while self_queue and other_queue:
-                self_interval = self_queue[0]
-                other_interval = other_queue[0]
-
-                intersection = self_interval & other_interval
-                if intersection:
-                    raw.add(intersection)
-
-                pop_from = (
-                    self_queue if other_interval.upper > self_interval.upper
-                    else other_queue
-                )
-
-                pop_from.pop(0)
+        result = set_intersection(self, *self._iter_other_sets(others))
+        self.intervals = result
 
     def union(self, *others):
         """
@@ -155,7 +146,6 @@ class IntervalSet(set):
 
         set.union(a, b) <=> set | a | b
 
-        >>> from .interval import Interval
         >>> set_a = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
         >>> set_b_no_data = Interval.closed(0, 2) | Interval.open(3, 5)
@@ -170,26 +160,21 @@ class IntervalSet(set):
         >>> set_a | Interval.open(2, 10)
         <IntervalSet (1, 3): some, [3, 10)>
         >>> set_a | Interval.open(2, 10, 'some')
-        <Interval (1, 10): some>
+        <IntervalSet (1, 10): some>
         """
 
-        result = self.__class__(self, check_overlaps=False)
-        result.update(*others)
-
-        if len(result) == 0:
-            return None
-
-        if len(result) == 1:
-            return iter(result).next()
-
-        return result
+        intervals = itertools.chain(
+            self,
+            *self._iter_other_sets(others)
+        )
+        result = _union(*intervals)
+        return self.__class__(result, check_overlaps=False)
 
     def update(self, *others):
         """
         Updates the set adding new intervals from others (which can be
         either sets or intervals).
 
-        >>> from .interval import Interval
         >>> set_a = Interval.open(1, 3) | Interval.closed(4, 5)
         >>> set_b = Interval.closed(0, 2) | Interval.open(3, 5)
         >>> result = IntervalSet(set_a)
@@ -200,41 +185,12 @@ class IntervalSet(set):
         True
         """
 
-        queue = list(self)
-        heapq.heapify(queue)
-
-        for other in others:
-            if isinstance(other, Iterable):
-                for interval in other:
-                    heapq.heappush(queue, interval)
-            else:
-                heapq.heappush(queue, other)
-
-        self.clear()
-        raw = super(IntervalSet, self)
-        last_interval = None
-
-        while queue:
-            interval = heapq.heappop(queue)
-
-            if not last_interval:
-                last_interval = interval
-                continue
-
-            union = interval | last_interval
-            if isinstance(union, IntervalSet):
-                for i in union:
-                    if i.lower < interval.lower:
-                        raw.add(i)
-                    elif i.lower == interval.lower:
-                        last_interval = i
-                    else:
-                        heapq.heappush(queue, i)
-            else:
-                last_interval = union
-
-        if last_interval:
-            raw.add(last_interval)
+        intervals = itertools.chain(
+            self,
+            *self._iter_other_sets(others)
+        )
+        result = _union(*intervals)
+        self.intervals = result
 
     def difference(self, *others):
         """
@@ -243,11 +199,10 @@ class IntervalSet(set):
         The return value can be either an IntervalSet, an Interval or None.
         set.difference(a, b) <=> set - a - b
 
-        >>> from .interval import Interval
         >>> set_a = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
         >>> set_b = Interval.open(1, 3, 'some') | Interval.closed(4, 5)
         >>> set_a - Interval.open(1, 10)
-        <Interval [0, 1]>
+        <IntervalSet [0, 1]>
         >>> set_a - Interval.open(1, 4)
         <IntervalSet [0, 1], [4, 5): data>
         >>> set_a - set_b
@@ -257,27 +212,21 @@ class IntervalSet(set):
         >>> set_b - set_a == set_b.difference(set_a)
         True
         >>> set_b - set_b
+        <IntervalSet >
         >>> set_a - set_a
+        <IntervalSet >
         >>> set_a - (set_b | set_a)
+        <IntervalSet >
         """
 
-        result = self.__class__(self, check_overlaps=False)
-        result.difference_update(*others)
-
-        if len(result) == 0:
-            return None
-
-        if len(result) == 1:
-            return iter(result).next()
-
-        return result
+        result = difference(self, self._iter_other_intervals(others))
+        return self.__class__(result, check_overlaps=False)
 
     def difference_update(self, *others):
         """
         Updates the set removing all intervals which collide with intervals
         in others (which can be either sets or intervals).
 
-        >>> from .interval import Interval
         >>> set_a = Interval.closed(0, 2) | Interval.open(3, 5, 'data')
 
         >>> result = IntervalSet(set_a)
@@ -291,59 +240,8 @@ class IntervalSet(set):
         <IntervalSet [0, 1], [4, 5): data>
         """
 
-        if not others:
-            return
-
-        other, others = others[0], others[1:]
-
-        if isinstance(other, IntervalSet) and not others:
-            others_union = other
-        else:
-            others_union = self.__class__()
-            others_union.update(other, *others)
-
-        if not others_union:
-            return
-
-        my_queue = list(self)
-        others_queue = list(others_union)
-        heapq.heapify(my_queue)
-        heapq.heapify(others_queue)
-
-        self.clear()
-
-        raw = super(IntervalSet, self)
-
-        other_interval = None
-        while my_queue:
-            interval = heapq.heappop(my_queue)
-            # print 'interval', interval
-
-            if not other_interval or other_interval.upper < interval.lower:
-                if others_queue:
-                    other_interval = heapq.heappop(others_queue)
-                else:
-                    raw.add(interval)
-                    other_interval = None
-                    continue
-
-            # print 'other', other_interval
-
-            diff = interval - other_interval
-            if not diff:
-                continue
-
-            # print 'diff', diff
-
-            if not isinstance(diff, IntervalSet):
-                diff = (diff, )
-
-            for diff_interval in diff:
-                if diff_interval.lower < other_interval.lower:
-                    # print 'adding', diff_interval
-                    raw.add(diff_interval)
-                else:
-                    heapq.heappush(my_queue, diff_interval)
+        result = difference(self, self._iter_other_intervals(others))
+        self.intervals = result
 
     def add(self, other):
         self.update((other, ))
