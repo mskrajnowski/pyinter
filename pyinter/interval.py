@@ -347,6 +347,10 @@ def set_intersection(*interval_sets, **kwargs):
     if not interval_sets:
         return []
 
+    for interval_set in interval_sets:
+        if not interval_set:
+            return []
+
     ignore_data = kwargs.get('ignore_data', False)
 
     all_bounds = _list_bounds(itertools.chain(*interval_sets))
